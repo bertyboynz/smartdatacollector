@@ -1,20 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
   <defs>
-    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#3498db;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#2980b9;stop-opacity:1" />
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2ecc71;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#27ae60;stop-opacity:1" />
     </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.2"/>
+    </filter>
   </defs>
-  <rect x="24" y="64" width="208" height="128" rx="16" fill="url(#grad1)"/>
-  <rect x="40" y="80" width="176" height="96" rx="8" fill="#1a1a2e"/>
-  <circle cx="128" cy="128" r="24" fill="none" stroke="#3498db" stroke-width="3"/>
-  <circle cx="128" cy="128" r="8" fill="#3498db"/>
-  <rect x="40" y="180" width="176" height="8" rx="4" fill="#2c3e50"/>
-  <circle cx="60" cy="184" r="3" fill="#27ae60"/>
-  <rect x="80" y="100" width="40" height="4" rx="2" fill="#3498db" opacity="0.6"/>
-  <rect x="80" y="110" width="60" height="4" rx="2" fill="#3498db" opacity="0.4"/>
-  <rect x="80" y="120" width="30" height="4" rx="2" fill="#3498db" opacity="0.6"/>
-  <rect x="80" y="140" width="50" height="4" rx="2" fill="#e74c3c" opacity="0.8"/>
-  <rect x="80" y="150" width="40" height="4" rx="2" fill="#f39c12" opacity="0.6"/>
-  <text x="128" y="220" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#2c3e50">SMART</text>
+  
+  <!-- Circle background -->
+  <circle cx="128" cy="128" r="120" fill="url(#bgGrad)" filter="url(#shadow)"/>
+  
+  <!-- Inner subtle ring -->
+  <circle cx="128" cy="128" r="108" fill="none" stroke="#fff" stroke-opacity="0.15" stroke-width="2"/>
+  
+  <!-- Heartbeat pulse line -->
+  <polyline 
+    points="30,128 70,128 85,128 95,100 108,156 120,80 132,168 144,95 155,140 165,128 180,128 226,128" 
+    fill="none" 
+    stroke="#ffffff" 
+    stroke-width="6" 
+    stroke-linecap="round" 
+    stroke-linejoin="round"
+  />
+  
+  <!-- Small heart at the pulse peak -->
+  <path d="M120,70 C120,62 128,58 128,66 C128,58 136,62 136,70 C136,80 128,86 128,86 C128,86 120,80 120,70Z" fill="#ffffff" fill-opacity="0.9"/>
 </svg>
