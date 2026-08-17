@@ -13,6 +13,14 @@ SMART_ATTRIBUTES = {
     199: "udma_crc_error_count",
 }
 
+def _format_bytes(size_bytes: int) -> str:
+    """Convert bytes to human-readable string."""
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        if abs(size_bytes) < 1024.0:
+            return f"{size_bytes:.2f} {unit}"
+        size_bytes /= 1024.0
+    return f"{size_bytes:.2f} PB"
+
 class SmartCollector:
     def __init__(self, excluded_drives: List[str] = None):
         self.excluded_drives = excluded_drives or []
@@ -31,21 +39,21 @@ class SmartCollector:
                 data = json.loads(result.stdout)
                 for device in data.get("devices", []):
                     drive_path = device["name"]
-                    serial = self._get_serial(drive_path)
-                    if serial and serial not in self.excluded_drives:
+                    info = self._get_drive_info(drive_path)
+                    if info and info["serial"] and info["serial"] not in self.excluded_drives:
                         drives.append({
                             "path": drive_path,
-                            "serial": serial,
-                            "model": device.get("model_name", "Unknown"),
-                            "size": device.get("size", {}).get("string", "Unknown"),
+                            "serial": info["serial"],
+                            "model": info["model"],
+                            "size": info["size"],
                             "type": device.get("type", "Unknown"),
                         })
         except Exception as e:
             print(f"Error scanning drives: {e}")
         return drives
 
-    def _get_serial(self, drive_path: str) -> Optional[str]:
-        """Get drive serial number."""
+    def _get_drive_info(self, drive_path: str) -> Optional[Dict]:
+        """Get drive serial, model, and size from smartctl -i."""
         try:
             result = subprocess.run(
                 ["smartctl", "-i", "--json", drive_path],
@@ -55,7 +63,15 @@ class SmartCollector:
             )
             if result.returncode == 0:
                 data = json.loads(result.stdout)
-                return data.get("serial_number")
+                serial = data.get("serial_number")
+                model = data.get("model_name") or data.get("scsi_model_name", "Unknown")
+                size_bytes = data.get("user_capacity", {}).get("bytes")
+                size = _format_bytes(size_bytes) if size_bytes else "Unknown"
+                return {
+                    "serial": serial,
+                    "model": model,
+                    "size": size,
+                }
         except Exception:
             pass
         return None
