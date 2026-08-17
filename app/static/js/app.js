@@ -123,7 +123,6 @@ async function manualCollect() {
         btn.disabled = false;
         btn.textContent = 'Run SMART';
     }
-    }
 }
 
 function startCollectPolling() {
