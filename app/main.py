@@ -1,13 +1,15 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from contextlib import asynccontextmanager
 import asyncio
 import json
+import re
 import time
 
 from .database import db
@@ -20,6 +22,7 @@ last_collect_time: float = 0
 COLLECT_COOLDOWN = 30  # seconds between collection runs
 
 ALLOWED_CONFIG_KEYS = {"collection_interval", "excluded_drives"}
+SERIAL_RE = re.compile(r'^[A-Za-z0-9_-]+$')
 
 async def run_collection():
     """Run SMART collection in background, storing results as each drive completes."""
@@ -90,6 +93,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -111,6 +125,8 @@ async def get_drives():
 
 @app.get("/api/drives/{serial}/history")
 async def get_drive_history(serial: str, limit: int = 100):
+    if not SERIAL_RE.match(serial):
+        raise HTTPException(status_code=400, detail="Invalid serial number")
     readings = await db.get_readings(serial, limit)
     return readings
 
@@ -181,5 +197,7 @@ async def populate_drives():
 
 @app.post("/api/drives/{serial}/exclude")
 async def exclude_drive(serial: str, exclude: bool = True):
+    if not SERIAL_RE.match(serial):
+        raise HTTPException(status_code=400, detail="Invalid serial number")
     await db.set_excluded(serial, exclude)
     return {"status": "ok"}
