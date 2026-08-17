@@ -102,7 +102,7 @@ async function populateDrives() {
 async function manualCollect() {
     const btn = document.getElementById('collectBtn');
     btn.disabled = true;
-    btn.textContent = 'Collecting...';
+    btn.textContent = 'Running...';
 
     try {
         await fetch('/api/collect', { method: 'POST' });
@@ -111,7 +111,7 @@ async function manualCollect() {
         console.error('Error collecting data:', error);
     } finally {
         btn.disabled = false;
-        btn.textContent = 'Collect Now';
+        btn.textContent = 'Run SMART';
     }
 }
 
@@ -122,7 +122,7 @@ function renderDashboard() {
         grid.innerHTML = `
             <div class="empty-state">
                 <h3>No drives found</h3>
-                <p>Click "Collect Now" to scan for drives</p>
+                <p>Click "Run SMART" to scan for drives</p>
             </div>
         `;
         return;
@@ -174,7 +174,7 @@ function renderDrivesTable() {
         tbody.innerHTML = `
             <tr>
                 <td colspan="7" class="empty-state">
-                    No drives found. Click "Collect Now" to scan for drives.
+                    No drives found. Click "Run SMART" to scan for drives.
                 </td>
             </tr>
         `;
