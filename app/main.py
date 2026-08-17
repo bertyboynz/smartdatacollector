@@ -98,6 +98,27 @@ async def manual_collect():
     await collect_smart_data()
     return {"status": "ok", "message": "Collection completed"}
 
+@app.post("/api/populate")
+async def populate_drives():
+    """Scan for drives and add them to the database without running full SMART collection."""
+    config = await db.get_all_config()
+    excluded = config.get("excluded_drives", "[]")
+    excluded_list = json.loads(excluded) if excluded else []
+
+    collector = SmartCollector(excluded_drives=excluded_list)
+    drives = collector.get_all_drives()
+
+    for drive in drives:
+        await db.upsert_drive({
+            "serial": drive["serial"],
+            "path": drive.get("path"),
+            "model": drive.get("model"),
+            "size": drive.get("size"),
+            "drive_type": drive.get("type"),
+        })
+
+    return {"status": "ok", "message": f"Found {len(drives)} drives", "count": len(drives)}
+
 @app.post("/api/drives/{serial}/exclude")
 async def exclude_drive(serial: str, exclude: bool = True):
     await db.set_excluded(serial, exclude)

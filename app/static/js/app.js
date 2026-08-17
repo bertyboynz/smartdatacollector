@@ -29,6 +29,7 @@ function initTabs() {
 }
 
 function initButtons() {
+    document.getElementById('populateBtn').addEventListener('click', populateDrives);
     document.getElementById('collectBtn').addEventListener('click', manualCollect);
     document.getElementById('refreshBtn').addEventListener('click', loadDrives);
     document.getElementById('saveSettings').addEventListener('click', saveSettings);
@@ -77,6 +78,24 @@ async function saveSettings() {
     } catch (error) {
         console.error('Error saving settings:', error);
         alert('Error saving settings');
+    }
+}
+
+async function populateDrives() {
+    const btn = document.getElementById('populateBtn');
+    btn.disabled = true;
+    btn.textContent = 'Populating...';
+
+    try {
+        const response = await fetch('/api/populate', { method: 'POST' });
+        const result = await response.json();
+        alert(result.message || 'Drives populated');
+        await loadDrives();
+    } catch (error) {
+        console.error('Error populating drives:', error);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Populate Drives';
     }
 }
 
