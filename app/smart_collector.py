@@ -25,15 +25,26 @@ class SmartCollector:
     def __init__(self, excluded_drives: List[str] = None):
         self.excluded_drives = excluded_drives or []
 
-    def _detect_drive_type(self, scan_type: str, rotation_rate: Optional[int]) -> str:
-        """Detect drive type from scan type and rotation rate.
+    def _detect_drive_type(self, scan_type: str, smart_info: Dict) -> str:
+        """Detect drive type from smartctl -i data.
 
         Returns a human-readable type like 'SATA SSD', 'SAS HDD', 'NVMe SSD', etc.
+        Uses rotation_rate and protocol from smartctl -i rather than scan type,
+        since scan type is unreliable (SATA drives often show as 'scsi' via libata).
         """
-        if scan_type == "nvme":
+        protocol = (smart_info.get("protocol") or "").lower()
+        rotation_rate = smart_info.get("rotation_rate")
+
+        if "nvme" in protocol or scan_type == "nvme":
             return "NVMe SSD"
 
-        bus = "SATA" if scan_type == "sat" else "SAS" if scan_type == "scsi" else scan_type.upper()
+        # Determine bus from protocol
+        if "sas" in protocol or "scsi" in protocol:
+            bus = "SAS"
+        elif "sata" in protocol or "ata" in protocol:
+            bus = "SATA"
+        else:
+            bus = "SATA"  # Default — most common drive type
 
         if rotation_rate is not None and rotation_rate > 0:
             return f"{bus} HDD"
@@ -56,7 +67,7 @@ class SmartCollector:
                     scan_type = device.get("type", "Unknown")
                     info = self._get_drive_info(drive_path)
                     if info and info["serial"] and info["serial"] not in self.excluded_drives:
-                        drive_type = self._detect_drive_type(scan_type, info.get("rotation_rate"))
+                        drive_type = self._detect_drive_type(scan_type, info)
                         drives.append({
                             "path": drive_path,
                             "serial": info["serial"],
@@ -85,11 +96,13 @@ class SmartCollector:
                 size_bytes = data.get("user_capacity", {}).get("bytes")
                 size = _format_bytes(size_bytes) if size_bytes else "Unknown"
                 rotation_rate = data.get("rotation_rate")
+                protocol = data.get("protocol")
                 return {
                     "serial": serial,
                     "model": model,
                     "size": size,
                     "rotation_rate": rotation_rate,
+                    "protocol": protocol,
                 }
         except Exception:
             pass
