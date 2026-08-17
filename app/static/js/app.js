@@ -164,7 +164,7 @@ function getDriveStatus(drive) {
 
 function getDriveStatusText(drive) {
     if (drive.excluded) return 'Excluded';
-    return 'Active';
+    return 'Included';
 }
 
 function renderDrivesTable() {
@@ -191,7 +191,7 @@ function renderDrivesTable() {
             <td>${formatDate(drive.last_seen)}</td>
             <td>
                 <span class="status-badge ${getDriveStatus(drive)}">
-                    ${drive.excluded ? 'Excluded' : 'Active'}
+                    ${drive.excluded ? 'Excluded' : 'Included'}
                 </span>
             </td>
             <td>
@@ -221,7 +221,9 @@ async function openDriveModal(serial) {
     const title = document.getElementById('modalTitle');
     const statsContainer = document.getElementById('modalStats');
 
-    title.textContent = `Drive Details - ${serial}`;
+    const drive = drives.find(d => d.serial === serial);
+    const driveName = drive ? (drive.model || 'Unknown Drive') : 'Unknown Drive';
+    title.textContent = `${driveName} - ${serial}`;
 
     try {
         const response = await fetch(`/api/drives/${serial}/history?limit=50`);
