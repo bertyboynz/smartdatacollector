@@ -39,6 +39,8 @@ class SmartCollector:
         if scan_type == "nvme":
             return "NVMe SSD"
 
+        bus = None
+
         # Check transport field first (e.g., "SAS (SPL-4)" for SAS drives)
         if transport:
             t = transport.lower()
