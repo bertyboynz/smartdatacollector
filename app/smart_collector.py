@@ -25,28 +25,44 @@ class SmartCollector:
     def __init__(self, excluded_drives: List[str] = None):
         self.excluded_drives = excluded_drives or []
 
-    def _detect_drive_type(self, protocol: str, scan_type: str, rotation_rate: Optional[int]) -> str:
-        """Detect drive type from smartctl protocol, scan type, and rotation rate.
+    def _detect_drive_type(self, protocol: str, transport: str, sata_version: str,
+                           scan_type: str, rotation_rate: Optional[int]) -> str:
+        """Detect drive type from smartctl -i fields.
 
         Returns a human-readable type like 'SATA SSD', 'SAS HDD', 'NVMe SSD', etc.
-        protocol from 'smartctl -i': 'SATA', 'SAS', 'SCSI', 'NVMe', etc.
-        scan_type from 'smartctl --scan': 'sat' = SATA, 'scsi' = SAS, 'nvme' = NVMe.
-        rotation_rate from 'smartctl -i': >0 = HDD, None/0 = SSD.
+        Detection order: transport > sata_version > protocol > scan_type.
 
-        Uses protocol (from smartctl -i) as primary source since scan_type is unreliable
-        on Linux where libata can cause SATA drives to report as 'scsi'.
+        On Linux, libata can cause SATA drives to report unreliable scan_type and
+        protocol values, so we check transport and sata_version first as they are
+        more direct indicators from the drive itself.
         """
-        if protocol:
+        if scan_type == "nvme":
+            return "NVMe SSD"
+
+        # Check transport field first (e.g., "SAS (SPL-4)" for SAS drives)
+        if transport:
+            t = transport.lower()
+            if "sas" in t or "scsi" in t:
+                bus = "SAS"
+            elif "sata" in t:
+                bus = "SATA"
+            else:
+                bus = None
+
+        # Fall back to sata_version presence (e.g., "SATA 3.3, 6.0 Gb/s")
+        if not bus and sata_version:
+            bus = "SATA"
+
+        # Fall back to protocol field from smartctl -i
+        if not bus and protocol:
             p = protocol.lower()
-            if "nvme" in p:
-                return "NVMe SSD"
             if "sas" in p or "scsi" in p:
                 bus = "SAS"
-            else:
+            elif "sata" in p or "ata" in p:
                 bus = "SATA"
-        else:
-            if scan_type == "nvme":
-                return "NVMe SSD"
+
+        # Final fallback to scan_type from smartctl --scan
+        if not bus:
             bus = "SAS" if scan_type == "scsi" else "SATA"
 
         if rotation_rate is not None and rotation_rate > 0:
@@ -70,7 +86,11 @@ class SmartCollector:
                     scan_type = device.get("type", "Unknown")
                     info = self._get_drive_info(drive_path)
                     if info and info["serial"] and info["serial"] not in self.excluded_drives:
-                        drive_type = self._detect_drive_type(info.get("protocol"), scan_type, info.get("rotation_rate"))
+                        drive_type = self._detect_drive_type(
+                            info.get("protocol"), info.get("transport"),
+                            info.get("sata_version"), scan_type,
+                            info.get("rotation_rate")
+                        )
                         drives.append({
                             "path": drive_path,
                             "serial": info["serial"],
@@ -100,12 +120,16 @@ class SmartCollector:
                 size = _format_bytes(size_bytes) if size_bytes else "Unknown"
                 rotation_rate = data.get("rotation_rate")
                 protocol = data.get("protocol")
+                transport = data.get("transport")
+                sata_version = data.get("sata_version")
                 return {
                     "serial": serial,
                     "model": model,
                     "size": size,
                     "rotation_rate": rotation_rate,
                     "protocol": protocol,
+                    "transport": transport,
+                    "sata_version": sata_version,
                 }
         except Exception:
             pass
@@ -137,7 +161,12 @@ class SmartCollector:
         For SAS, extracts health from top-level fields and SCSI log pages.
         """
         protocol = (data.get("protocol") or "").lower()
-        is_sas = "sas" in protocol or "scsi" in protocol
+        transport = (data.get("transport") or "").lower()
+        sata_version = data.get("sata_version")
+        # sata_version presence is the most reliable SATA indicator;
+        # transport/protocol can be wrong on Linux with libata.
+        is_sas = not sata_version and ("sas" in transport or "scsi" in transport or
+                                       "sas" in protocol or "scsi" in protocol)
 
         attributes = {
             "timestamp": datetime.utcnow().isoformat(),
