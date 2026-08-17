@@ -432,6 +432,7 @@ function renderModalStats(container, latest, previous) {
     const stats = [
         { label: 'Temperature', key: 'temperature', value: latest.temperature, unit: '°C' },
         { label: 'Power On Hours', key: 'power_on_hours', value: latest.power_on_hours, unit: 'hours' },
+        { label: 'Start/Stop Count', key: 'start_stop_count', value: latest.start_stop_count, unit: '' },
         { label: 'Power Cycle Count', key: 'power_cycle_count', value: latest.power_cycle_count, unit: '' },
         { label: 'Load Cycle Count', key: 'load_cycle_count', value: latest.load_cycle_count, unit: '' },
         { label: 'Reallocated Sectors', key: 'reallocated_sectors', value: latest.reallocated_sectors || 0, unit: '' },

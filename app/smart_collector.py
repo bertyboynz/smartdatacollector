@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Set
 from datetime import datetime
 
 SMART_ATTRIBUTES = {
+    4: "start_stop_count",
     5: "reallocated_sectors",
     12: "power_cycle_count",
     184: "end_to_end_error",
@@ -191,6 +192,7 @@ class SmartCollector:
             "temperature": None,
             "load_cycle_count": None,
             "health_status": None,
+            "start_stop_count": None,
             "reallocated_sectors": None,
             "power_cycle_count": None,
             "end_to_end_error": None,
