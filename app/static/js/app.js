@@ -8,6 +8,16 @@ let collectPollInterval = null;
 let collectingPaths = new Set();
 let pendingPaths = new Set();
 
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initButtons();
@@ -217,28 +227,28 @@ function renderDashboard() {
     }
 
     grid.innerHTML = sortedDrives.map(drive => `
-        <div class="drive-card" onclick="openDriveModal('${drive.serial}')">
+        <div class="drive-card" onclick="openDriveModal('${escapeHtml(drive.serial)}')">
             <div class="drive-card-header">
-                <h3>${drive.model || 'Unknown Drive'}</h3>
-                <span class="drive-type-badge">${drive.drive_type || 'Unknown'}</span>
+                <h3>${escapeHtml(drive.model || 'Unknown Drive')}</h3>
+                <span class="drive-type-badge">${escapeHtml(drive.drive_type || 'Unknown')}</span>
                 <span class="status-badge ${getDriveStatus(drive)}">${getDriveStatusText(drive)}</span>
             </div>
             <div class="drive-stats">
                 <div class="stat-item">
                     <span class="stat-label">Serial</span>
-                    <span class="stat-value">${drive.serial}</span>
+                    <span class="stat-value">${escapeHtml(drive.serial)}</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-label">Size</span>
-                    <span class="stat-value">${drive.size || 'Unknown'}</span>
+                    <span class="stat-value">${escapeHtml(drive.size || 'Unknown')}</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-label">Path</span>
-                    <span class="stat-value">${drive.path}</span>
+                    <span class="stat-value">${escapeHtml(drive.path)}</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-label">Last Seen</span>
-                    <span class="stat-value">${formatDate(drive.last_seen)}</span>
+                    <span class="stat-value">${escapeHtml(formatDate(drive.last_seen))}</span>
                 </div>
             </div>
         </div>
@@ -275,12 +285,12 @@ function renderDrivesTable() {
 
     tbody.innerHTML = drives.map(drive => `
         <tr class="${drive.excluded ? 'excluded' : ''}">
-            <td>${drive.serial}</td>
-            <td>${drive.model || 'Unknown'}</td>
-            <td>${drive.drive_type || 'Unknown'}</td>
-            <td>${drive.path}</td>
-            <td>${drive.size || 'Unknown'}</td>
-            <td>${formatDate(drive.last_seen)}</td>
+            <td>${escapeHtml(drive.serial)}</td>
+            <td>${escapeHtml(drive.model || 'Unknown')}</td>
+            <td>${escapeHtml(drive.drive_type || 'Unknown')}</td>
+            <td>${escapeHtml(drive.path)}</td>
+            <td>${escapeHtml(drive.size || 'Unknown')}</td>
+            <td>${escapeHtml(formatDate(drive.last_seen))}</td>
             <td>
                 <span class="status-badge ${getDriveStatus(drive)}">
                     ${getDriveStatusText(drive)}
@@ -288,7 +298,7 @@ function renderDrivesTable() {
             </td>
             <td>
                 <button class="btn btn-small ${drive.excluded ? 'btn-success' : 'btn-danger'}"
-                        onclick="toggleExclude('${drive.serial}', ${!drive.excluded})">
+                        onclick="toggleExclude('${escapeHtml(drive.serial)}', ${!drive.excluded})">
                     ${drive.excluded ? 'Include' : 'Exclude'}
                 </button>
             </td>
@@ -472,7 +482,7 @@ function renderModalStats(container, latest, previous) {
 function updateHistoryDriveSelect() {
     const select = document.getElementById('historyDrive');
     select.innerHTML = drives.map(drive =>
-        `<option value="${drive.serial}">${drive.model || 'Unknown'} (${drive.serial})</option>`
+        `<option value="${escapeHtml(drive.serial)}">${escapeHtml(drive.model || 'Unknown')} (${escapeHtml(drive.serial)})</option>`
     ).join('');
 }
 

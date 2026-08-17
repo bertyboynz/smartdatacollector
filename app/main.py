@@ -1,12 +1,14 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from contextlib import asynccontextmanager
 import asyncio
 import json
+import time
 
 from .database import db
 from .smart_collector import SmartCollector
@@ -14,6 +16,10 @@ from .smart_collector import SmartCollector
 scheduler = AsyncIOScheduler()
 collector: Optional[SmartCollector] = None
 collecting_task: Optional[asyncio.Task] = None
+last_collect_time: float = 0
+COLLECT_COOLDOWN = 30  # seconds between collection runs
+
+ALLOWED_CONFIG_KEYS = {"collection_interval", "excluded_drives"}
 
 async def run_collection():
     """Run SMART collection in background, storing results as each drive completes."""
@@ -84,6 +90,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
@@ -103,14 +116,21 @@ async def get_drive_history(serial: str, limit: int = 100):
 
 @app.post("/api/config")
 async def update_config(config: Dict[str, str]):
-    for key, value in config.items():
+    allowed = {k: v for k, v in config.items() if k in ALLOWED_CONFIG_KEYS}
+    if not allowed:
+        return {"status": "ok"}
+
+    for key, value in allowed.items():
         await db.set_config(key, str(value))
 
-    if "collection_interval" in config:
+    if "collection_interval" in allowed:
+        interval = int(allowed["collection_interval"])
+        if interval < 1:
+            interval = 1
         scheduler.reschedule_job(
             'smart_collector',
             trigger='interval',
-            minutes=int(config["collection_interval"])
+            minutes=interval
         )
 
     return {"status": "ok"}
@@ -122,6 +142,12 @@ async def get_config():
 
 @app.post("/api/collect")
 async def manual_collect():
+    global last_collect_time
+    now = time.time()
+    if now - last_collect_time < COLLECT_COOLDOWN:
+        remaining = int(COLLECT_COOLDOWN - (now - last_collect_time))
+        return {"status": "error", "message": f"Collection too soon. Try again in {remaining}s"}
+    last_collect_time = now
     await collect_smart_data()
     return {"status": "ok", "message": "Collection started"}
 
