@@ -119,7 +119,21 @@ async def root():
         return f.read()
 
 @app.get("/api/drives")
-async def get_drives():
+async def get_drives(scan: bool = False):
+    if scan:
+        config = await db.get_all_config()
+        excluded = config.get("excluded_drives", "[]")
+        excluded_list = json.loads(excluded) if excluded else []
+        c = SmartCollector(excluded_drives=excluded_list)
+        drives = await c.get_all_drives()
+        for drive in drives:
+            await db.upsert_drive({
+                "serial": drive["serial"],
+                "path": drive.get("path"),
+                "model": drive.get("model"),
+                "size": drive.get("size"),
+                "drive_type": drive.get("type"),
+            })
     drives = await db.get_all_drives()
     return drives
 

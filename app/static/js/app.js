@@ -21,7 +21,7 @@ function escapeHtml(str) {
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
     initButtons();
-    loadDrives();
+    loadDrives(true);
     loadConfig();
 });
 
@@ -44,7 +44,6 @@ function initTabs() {
 }
 
 function initButtons() {
-    document.getElementById('populateBtn').addEventListener('click', populateDrives);
     document.getElementById('collectBtn').addEventListener('click', manualCollect);
     document.getElementById('refreshBtn').addEventListener('click', refreshDrives);
     document.getElementById('saveSettings').addEventListener('click', saveSettings);
@@ -58,9 +57,10 @@ function initButtons() {
     });
 }
 
-async function loadDrives() {
+async function loadDrives(scan = false) {
     try {
-        const response = await fetch('/api/drives');
+        const url = scan ? '/api/drives?scan=true' : '/api/drives';
+        const response = await fetch(url);
         drives = await response.json();
         renderDashboard();
         updateHistoryDriveSelect();
@@ -73,7 +73,7 @@ async function refreshDrives() {
     const btn = document.getElementById('refreshBtn');
     btn.disabled = true;
     btn.textContent = 'Refreshing...';
-    await loadDrives();
+    await loadDrives(true);
     btn.disabled = false;
     btn.textContent = 'Refresh';
 }
@@ -102,24 +102,6 @@ async function saveSettings() {
     } catch (error) {
         console.error('Error saving settings:', error);
         alert('Error saving settings');
-    }
-}
-
-async function populateDrives() {
-    const btn = document.getElementById('populateBtn');
-    btn.disabled = true;
-    btn.textContent = 'Populating...';
-
-    try {
-        const response = await fetch('/api/populate', { method: 'POST' });
-        const result = await response.json();
-        alert(result.message || 'Drives populated');
-        await loadDrives();
-    } catch (error) {
-        console.error('Error populating drives:', error);
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Populate Drives';
     }
 }
 
