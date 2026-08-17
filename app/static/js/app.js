@@ -36,7 +36,7 @@ function initTabs() {
 function initButtons() {
     document.getElementById('populateBtn').addEventListener('click', populateDrives);
     document.getElementById('collectBtn').addEventListener('click', manualCollect);
-    document.getElementById('refreshBtn').addEventListener('click', loadDrives);
+    document.getElementById('refreshBtn').addEventListener('click', refreshDrives);
     document.getElementById('saveSettings').addEventListener('click', saveSettings);
     document.getElementById('loadHistory').addEventListener('click', loadHistoryChart);
 
@@ -57,6 +57,15 @@ async function loadDrives() {
     } catch (error) {
         console.error('Error loading drives:', error);
     }
+}
+
+async function refreshDrives() {
+    const btn = document.getElementById('refreshBtn');
+    btn.disabled = true;
+    btn.textContent = 'Refreshing...';
+    await loadDrives();
+    btn.disabled = false;
+    btn.textContent = 'Refresh';
 }
 
 async function loadConfig() {
