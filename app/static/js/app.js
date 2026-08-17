@@ -1,5 +1,7 @@
 let currentTab = 'dashboard';
 let drives = [];
+let sortedDrives = [];
+let currentDriveIndex = -1;
 let historyChart = null;
 let modalChart = null;
 
@@ -115,8 +117,26 @@ async function manualCollect() {
     }
 }
 
+function parseSizeToBytes(sizeStr) {
+    if (!sizeStr || sizeStr === 'Unknown') return 0;
+    const match = sizeStr.match(/([\d.]+)\s*(B|KB|MB|GB|TB|PB)/i);
+    if (!match) return 0;
+    const value = parseFloat(match[1]);
+    const unit = match[2].toUpperCase();
+    const units = { B: 1, KB: 1024, MB: 1024**2, GB: 1024**3, TB: 1024**4, PB: 1024**5 };
+    return value * (units[unit] || 0);
+}
+
+function sortDrives() {
+    sortedDrives = [...drives].sort((a, b) => {
+        if (a.excluded !== b.excluded) return a.excluded ? 1 : -1;
+        return parseSizeToBytes(b.size) - parseSizeToBytes(a.size);
+    });
+}
+
 function renderDashboard() {
     const grid = document.getElementById('driveGrid');
+    sortDrives();
 
     if (drives.length === 0) {
         grid.innerHTML = `
@@ -128,7 +148,7 @@ function renderDashboard() {
         return;
     }
 
-    grid.innerHTML = drives.map(drive => `
+    grid.innerHTML = sortedDrives.map(drive => `
         <div class="drive-card" onclick="openDriveModal('${drive.serial}')">
             <div class="drive-card-header">
                 <h3>${drive.model || 'Unknown Drive'}</h3>
@@ -217,6 +237,13 @@ async function toggleExclude(serial, exclude) {
 }
 
 async function openDriveModal(serial) {
+    sortDrives();
+    currentDriveIndex = sortedDrives.findIndex(d => d.serial === serial);
+    updateModalNavButtons();
+    await loadDriveModalData(serial);
+}
+
+async function loadDriveModalData(serial) {
     const modal = document.getElementById('driveModal');
     const title = document.getElementById('modalTitle');
     const statsContainer = document.getElementById('modalStats');
@@ -247,9 +274,32 @@ async function openDriveModal(serial) {
 
 function closeModal() {
     document.getElementById('driveModal').classList.add('hidden');
+    currentDriveIndex = -1;
     if (modalChart) {
         modalChart.destroy();
         modalChart = null;
+    }
+}
+
+function navigateDrive(direction) {
+    if (sortedDrives.length === 0) return;
+    currentDriveIndex += direction;
+    if (currentDriveIndex < 0) currentDriveIndex = sortedDrives.length - 1;
+    if (currentDriveIndex >= sortedDrives.length) currentDriveIndex = 0;
+    if (modalChart) {
+        modalChart.destroy();
+        modalChart = null;
+    }
+    updateModalNavButtons();
+    loadDriveModalData(sortedDrives[currentDriveIndex].serial);
+}
+
+function updateModalNavButtons() {
+    const prevBtn = document.getElementById('modalPrevBtn');
+    const nextBtn = document.getElementById('modalNextBtn');
+    if (prevBtn && nextBtn) {
+        prevBtn.disabled = sortedDrives.length <= 1;
+        nextBtn.disabled = sortedDrives.length <= 1;
     }
 }
 

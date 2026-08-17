@@ -335,6 +335,17 @@ h1 {
     color: #333;
 }
 
+.modal-nav {
+    display: flex;
+    justify-content: space-between;
+    padding: 15px 30px 0;
+}
+
+.modal-nav .btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
 .modal-body {
     padding: 30px;
 }
