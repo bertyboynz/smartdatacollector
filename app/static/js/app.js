@@ -113,6 +113,7 @@ function renderDashboard() {
         <div class="drive-card" onclick="openDriveModal('${drive.serial}')">
             <div class="drive-card-header">
                 <h3>${drive.model || 'Unknown Drive'}</h3>
+                <span class="drive-type-badge">${drive.drive_type || 'Unknown'}</span>
                 <span class="status-badge ${getDriveStatus(drive)}">${getDriveStatusText(drive)}</span>
             </div>
             <div class="drive-stats">
@@ -165,6 +166,7 @@ function renderDrivesTable() {
         <tr class="${drive.excluded ? 'excluded' : ''}">
             <td>${drive.serial}</td>
             <td>${drive.model || 'Unknown'}</td>
+            <td>${drive.drive_type || 'Unknown'}</td>
             <td>${drive.path}</td>
             <td>${drive.size || 'Unknown'}</td>
             <td>${formatDate(drive.last_seen)}</td>

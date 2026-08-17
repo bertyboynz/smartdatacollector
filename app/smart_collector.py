@@ -25,6 +25,20 @@ class SmartCollector:
     def __init__(self, excluded_drives: List[str] = None):
         self.excluded_drives = excluded_drives or []
 
+    def _detect_drive_type(self, scan_type: str, rotation_rate: Optional[int]) -> str:
+        """Detect drive type from scan type and rotation rate.
+
+        Returns a human-readable type like 'SATA SSD', 'SAS HDD', 'NVMe SSD', etc.
+        """
+        if scan_type == "nvme":
+            return "NVMe SSD"
+
+        bus = "SATA" if scan_type == "sat" else "SAS" if scan_type == "scsi" else scan_type.upper()
+
+        if rotation_rate is not None and rotation_rate > 0:
+            return f"{bus} HDD"
+        return f"{bus} SSD"
+
     def get_all_drives(self) -> List[Dict]:
         """Get list of all drives in the system."""
         drives = []
@@ -39,21 +53,24 @@ class SmartCollector:
                 data = json.loads(result.stdout)
                 for device in data.get("devices", []):
                     drive_path = device["name"]
+                    scan_type = device.get("type", "Unknown")
                     info = self._get_drive_info(drive_path)
                     if info and info["serial"] and info["serial"] not in self.excluded_drives:
+                        drive_type = self._detect_drive_type(scan_type, info.get("rotation_rate"))
                         drives.append({
                             "path": drive_path,
                             "serial": info["serial"],
                             "model": info["model"],
                             "size": info["size"],
-                            "type": device.get("type", "Unknown"),
+                            "type": drive_type,
+                            "bus_type": scan_type,
                         })
         except Exception as e:
             print(f"Error scanning drives: {e}")
         return drives
 
     def _get_drive_info(self, drive_path: str) -> Optional[Dict]:
-        """Get drive serial, model, and size from smartctl -i."""
+        """Get drive serial, model, size, and type from smartctl -i."""
         try:
             result = subprocess.run(
                 ["smartctl", "-i", "--json", drive_path],
@@ -67,10 +84,12 @@ class SmartCollector:
                 model = data.get("model_name") or data.get("scsi_model_name", "Unknown")
                 size_bytes = data.get("user_capacity", {}).get("bytes")
                 size = _format_bytes(size_bytes) if size_bytes else "Unknown"
+                rotation_rate = data.get("rotation_rate")
                 return {
                     "serial": serial,
                     "model": model,
                     "size": size,
+                    "rotation_rate": rotation_rate,
                 }
         except Exception:
             pass

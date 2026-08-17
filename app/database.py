@@ -20,6 +20,7 @@ class Database:
                     path TEXT NOT NULL,
                     model TEXT,
                     size TEXT,
+                    drive_type TEXT,
                     excluded INTEGER DEFAULT 0,
                     last_seen TIMESTAMP
                 )
@@ -44,22 +45,31 @@ class Database:
 
             await db.commit()
 
+            # Migration: add drive_type column if missing (older databases)
+            try:
+                await db.execute("ALTER TABLE drives ADD COLUMN drive_type TEXT")
+                await db.commit()
+            except Exception:
+                pass  # Column already exists
+
     async def upsert_drive(self, drive: Dict):
         """Insert or update drive information."""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""
-                INSERT INTO drives (serial, path, model, size, last_seen)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO drives (serial, path, model, size, drive_type, last_seen)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(serial) DO UPDATE SET
                     path = excluded.path,
                     model = excluded.model,
                     size = excluded.size,
+                    drive_type = excluded.drive_type,
                     last_seen = excluded.last_seen
             """, (
                 drive["serial"],
                 drive["path"],
                 drive.get("model"),
                 drive.get("size"),
+                drive.get("drive_type"),
                 datetime.utcnow().isoformat()
             ))
             await db.commit()

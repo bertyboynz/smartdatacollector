@@ -31,6 +31,7 @@ async def collect_smart_data():
                 "path": drive_info.get("path"),
                 "model": drive_info.get("model"),
                 "size": drive_info.get("size"),
+                "drive_type": drive_info.get("type"),
             })
             await db.store_reading(serial, data)
 
