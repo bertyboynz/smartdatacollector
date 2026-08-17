@@ -1,0 +1,8 @@
+<CommunityApplications>
+  <Profile>
+    Monitor SMART data from your Unraid drives over time with a web dashboard. Tracks drive health metrics, shows historical trends, and alerts you to potential issues before they become critical.
+  </Profile>
+  <Icon>https://raw.githubusercontent.com/bertyboynz/smartdatacollector/main/icon.png</Icon>
+  <WebPage>https://github.com/bertyboynz/smartdatacollector</WebPage>
+  <Forum>https://forums.unraid.net/topic/XXXXX-smart-data-collector/</Forum>
+</CommunityApplications>

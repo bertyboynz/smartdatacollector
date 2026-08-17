@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  smartdatacollector:
+    build: .
+    container_name: smartdatacollector
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "8080:8080"
+    volumes:
+      - /dev:/dev:ro
+      - /dev/disk/by-id:/dev/disk/by-id:ro
+      - ./data:/app/data
+    environment:
+      - TZ=UTC
