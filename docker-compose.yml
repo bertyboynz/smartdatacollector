@@ -12,5 +12,3 @@ services:
       - /dev:/dev:ro
       - /dev/disk/by-id:/dev/disk/by-id:ro
       - ./data:/app/data
-    environment:
-      - TZ=UTC

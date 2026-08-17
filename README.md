@@ -60,7 +60,7 @@ A Docker-based application for monitoring SMART data from Unraid drives over tim
 
 ### Environment Variables
 
-- `TZ`: Timezone for the container (default: UTC)
+- `TZ`: Timezone for the container. Set automatically by Unraid or your host system.
 
 ## Docker Compose Options
 
