@@ -1,7 +1,8 @@
 import subprocess
+import asyncio
 import json
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from datetime import datetime
 
 SMART_ATTRIBUTES = {
@@ -27,6 +28,7 @@ def _format_bytes(size_bytes: int) -> str:
 class SmartCollector:
     def __init__(self, excluded_drives: List[str] = None):
         self.excluded_drives = excluded_drives or []
+        self.collecting: Set[str] = set()
 
     def _detect_drive_type(self, protocol: str, transport: str, sata_version: str,
                            scan_type: str, rotation_rate: Optional[int]) -> str:
@@ -74,11 +76,12 @@ class SmartCollector:
             return f"{bus} HDD"
         return f"{bus} SSD"
 
-    def get_all_drives(self) -> List[Dict]:
+    async def get_all_drives(self) -> List[Dict]:
         """Get list of all drives in the system."""
         drives = []
         try:
-            result = subprocess.run(
+            result = await asyncio.to_thread(
+                subprocess.run,
                 ["smartctl", "--scan", "--json"],
                 capture_output=True,
                 text=True,
@@ -89,7 +92,7 @@ class SmartCollector:
                 for device in data.get("devices", []):
                     drive_path = device["name"]
                     scan_type = device.get("type", "Unknown")
-                    info = self._get_drive_info(drive_path)
+                    info = await self._get_drive_info(drive_path)
                     if info and info["serial"] and info["serial"] not in self.excluded_drives:
                         drive_type = self._detect_drive_type(
                             info.get("protocol"), info.get("transport"),
@@ -108,10 +111,11 @@ class SmartCollector:
             print(f"Error scanning drives: {e}")
         return drives
 
-    def _get_drive_info(self, drive_path: str) -> Optional[Dict]:
+    async def _get_drive_info(self, drive_path: str) -> Optional[Dict]:
         """Get drive serial, model, size, and type from smartctl -i."""
         try:
-            result = subprocess.run(
+            result = await asyncio.to_thread(
+                subprocess.run,
                 ["smartctl", "-i", "--json", drive_path],
                 capture_output=True,
                 text=True,
@@ -140,10 +144,12 @@ class SmartCollector:
             pass
         return None
 
-    def collect_smart_data(self, drive_path: str) -> Optional[Dict]:
+    async def collect_smart_data(self, drive_path: str) -> Optional[Dict]:
         """Collect SMART data from a drive."""
         try:
-            result = subprocess.run(
+            self.collecting.add(drive_path)
+            result = await asyncio.to_thread(
+                subprocess.run,
                 ["smartctl", "-a", "--json", drive_path],
                 capture_output=True,
                 text=True,
@@ -157,6 +163,8 @@ class SmartCollector:
                 return self._parse_smart_data(data, drive_path)
         except Exception as e:
             print(f"Error collecting SMART data from {drive_path}: {e}")
+        finally:
+            self.collecting.discard(drive_path)
         return None
 
     def _parse_smart_data(self, data: Dict, drive_path: str) -> Dict:
@@ -266,15 +274,24 @@ class SmartCollector:
                 else:
                     attributes["reported_uncorrectable"] += write_errs["correction_of_errors"]
 
-    def collect_all(self) -> List[Dict]:
-        """Collect SMART data from all non-excluded drives."""
-        drives = self.get_all_drives()
+    async def collect_all(self) -> List[Dict]:
+        """Collect SMART data from all non-excluded drives, 2 at a time."""
+        drives = await self.get_all_drives()
         all_data = []
+        semaphore = asyncio.Semaphore(2)
 
-        for drive in drives:
-            smart_data = self.collect_smart_data(drive["path"])
-            if smart_data:
-                smart_data["drive_info"] = drive
-                all_data.append(smart_data)
+        async def collect_one(drive):
+            async with semaphore:
+                smart_data = await self.collect_smart_data(drive["path"])
+                if smart_data:
+                    smart_data["drive_info"] = drive
+                    return smart_data
+            return None
+
+        tasks = [collect_one(d) for d in drives]
+        results = await asyncio.gather(*tasks)
+        for r in results:
+            if r:
+                all_data.append(r)
 
         return all_data

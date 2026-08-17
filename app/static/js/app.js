@@ -4,6 +4,9 @@ let sortedDrives = [];
 let currentDriveIndex = -1;
 let historyChart = null;
 let modalChart = null;
+let collectPollInterval = null;
+let collectingPaths = new Set();
+let pendingPaths = new Set();
 
 document.addEventListener('DOMContentLoaded', () => {
     initTabs();
@@ -104,17 +107,74 @@ async function populateDrives() {
 async function manualCollect() {
     const btn = document.getElementById('collectBtn');
     btn.disabled = true;
-    btn.textContent = 'Running...';
+    btn.textContent = 'SMART running...';
 
     try {
-        await fetch('/api/collect', { method: 'POST' });
-        await loadDrives();
+        const response = await fetch('/api/collect', { method: 'POST' });
+        const result = await response.json();
+
+        // Mark all non-excluded drives as pending
+        pendingPaths = new Set(drives.filter(d => !d.excluded).map(d => d.path));
+        collectingPaths.clear();
+        renderDashboard();
+        startCollectPolling();
     } catch (error) {
-        console.error('Error collecting data:', error);
-    } finally {
+        console.error('Error starting collection:', error);
         btn.disabled = false;
         btn.textContent = 'Run SMART';
     }
+    }
+}
+
+function startCollectPolling() {
+    if (collectPollInterval) return;
+    collectPollInterval = setInterval(pollCollecting, 2000);
+}
+
+async function pollCollecting() {
+    try {
+        const response = await fetch('/api/collecting');
+        const data = await response.json();
+        const active = new Set(data.collecting);
+
+        // Update pending -> collecting
+        for (const path of active) {
+            if (pendingPaths.has(path)) {
+                pendingPaths.delete(path);
+                collectingPaths.add(path);
+            }
+        }
+
+        // Update collecting -> done (removed from active)
+        for (const path of collectingPaths) {
+            if (!active.has(path)) {
+                collectingPaths.delete(path);
+            }
+        }
+
+        renderDashboard();
+
+        // Stop polling when nothing left to do
+        if (pendingPaths.size === 0 && collectingPaths.size === 0) {
+            stopCollectPolling();
+            await loadDrives();
+        }
+    } catch (error) {
+        console.error('Error polling collecting status:', error);
+    }
+}
+
+function stopCollectPolling() {
+    if (collectPollInterval) {
+        clearInterval(collectPollInterval);
+        collectPollInterval = null;
+    }
+    const btn = document.getElementById('collectBtn');
+    btn.disabled = false;
+    btn.textContent = 'Run SMART';
+    pendingPaths.clear();
+    collectingPaths.clear();
+    renderDashboard();
 }
 
 function parseSizeToBytes(sizeStr) {
@@ -179,11 +239,15 @@ function renderDashboard() {
 
 function getDriveStatus(drive) {
     if (drive.excluded) return 'status-warning';
+    if (collectingPaths.has(drive.path)) return 'status-collecting';
+    if (pendingPaths.has(drive.path)) return 'status-pending';
     return 'status-good';
 }
 
 function getDriveStatusText(drive) {
     if (drive.excluded) return 'Excluded';
+    if (collectingPaths.has(drive.path)) return 'Collecting...';
+    if (pendingPaths.has(drive.path)) return 'Pending';
     return 'Included';
 }
 
@@ -211,7 +275,7 @@ function renderDrivesTable() {
             <td>${formatDate(drive.last_seen)}</td>
             <td>
                 <span class="status-badge ${getDriveStatus(drive)}">
-                    ${drive.excluded ? 'Excluded' : 'Included'}
+                    ${getDriveStatusText(drive)}
                 </span>
             </td>
             <td>

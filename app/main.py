@@ -5,35 +5,62 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from contextlib import asynccontextmanager
+import asyncio
 import json
 
 from .database import db
 from .smart_collector import SmartCollector
 
 scheduler = AsyncIOScheduler()
+collector: Optional[SmartCollector] = None
+collecting_task: Optional[asyncio.Task] = None
 
-async def collect_smart_data():
-    """Background task to collect SMART data."""
+async def run_collection():
+    """Run SMART collection in background, storing results as each drive completes."""
+    global collector
     config = await db.get_all_config()
     excluded = config.get("excluded_drives", "[]")
     excluded_list = json.loads(excluded) if excluded else []
 
     collector = SmartCollector(excluded_drives=excluded_list)
-    all_data = collector.collect_all()
+    drives = await collector.get_all_drives()
+    semaphore = asyncio.Semaphore(2)
 
-    for data in all_data:
-        serial = data.get("serial")
-        drive_info = data.get("drive_info", {})
+    async def collect_one(drive):
+        async with semaphore:
+            smart_data = await collector.collect_smart_data(drive["path"])
+            if smart_data:
+                smart_data["drive_info"] = drive
+                return smart_data
+        return None
 
-        if serial:
-            await db.upsert_drive({
-                "serial": serial,
-                "path": drive_info.get("path"),
-                "model": drive_info.get("model"),
-                "size": drive_info.get("size"),
-                "drive_type": drive_info.get("type"),
-            })
-            await db.store_reading(serial, data)
+    tasks = [asyncio.create_task(collect_one(d)) for d in drives]
+    for task in asyncio.as_completed(tasks):
+        try:
+            result = await task
+        except Exception:
+            continue
+        if result:
+            serial = result.get("serial")
+            drive_info = result.get("drive_info", {})
+            if serial:
+                await db.upsert_drive({
+                    "serial": serial,
+                    "path": drive_info.get("path"),
+                    "model": drive_info.get("model"),
+                    "size": drive_info.get("size"),
+                    "drive_type": drive_info.get("type"),
+                })
+                await db.store_reading(serial, result)
+
+    collector = None
+
+async def collect_smart_data():
+    """Background task to collect SMART data."""
+    global collecting_task
+    if collecting_task and not collecting_task.done():
+        return
+    collecting_task = asyncio.create_task(run_collection())
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -96,7 +123,14 @@ async def get_config():
 @app.post("/api/collect")
 async def manual_collect():
     await collect_smart_data()
-    return {"status": "ok", "message": "Collection completed"}
+    return {"status": "ok", "message": "Collection started"}
+
+@app.get("/api/collecting")
+async def get_collecting():
+    """Return which drive paths are currently being scanned."""
+    if collector:
+        return {"collecting": list(collector.collecting)}
+    return {"collecting": []}
 
 @app.post("/api/populate")
 async def populate_drives():
@@ -105,8 +139,8 @@ async def populate_drives():
     excluded = config.get("excluded_drives", "[]")
     excluded_list = json.loads(excluded) if excluded else []
 
-    collector = SmartCollector(excluded_drives=excluded_list)
-    drives = collector.get_all_drives()
+    c = SmartCollector(excluded_drives=excluded_list)
+    drives = await c.get_all_drives()
 
     for drive in drives:
         await db.upsert_drive({
