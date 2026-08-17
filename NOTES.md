@@ -88,6 +88,20 @@ Detection order (most reliable first):
 - Old readings in database won't have newly added attributes until re-collected
 - `smartctl --scan` can be slow with many drives
 
+## Security Review - Remaining Items
+
+Not yet implemented, flagged in security audit:
+
+| Priority | Issue | Effort | Notes |
+|----------|-------|--------|-------|
+| 5 | API key authentication | Medium | Add optional `API_KEY` env var; if set, require on all `/api/*` endpoints |
+| 6 | Drop `privileged: true` | Medium | Use `cap_add: [SYS_RAWIO]` + device mappings instead. Needs Unraid testing. |
+| 10 | Non-root container user | Medium | Add `USER` directive in Dockerfile. May need capability adjustments. |
+| 11 | No HTTPS | Low | Could use reverse proxy (Unraid already has nginx). Not critical for homelab. |
+| 12 | Outdated dependencies | Low | fastapi, uvicorn, pydantic, aiosqlite, apscheduler all pinned to late 2023 versions |
+| 13 | Port bound to all interfaces | Low | Could bind to `127.0.0.1` for local-only access |
+| 14 | No Content Security Policy | Low | Could add CSP header but may break Chart.js CDN |
+
 ## API Endpoints
 
 | Method | Path | Description |
