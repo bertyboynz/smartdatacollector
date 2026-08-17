@@ -25,17 +25,29 @@ class SmartCollector:
     def __init__(self, excluded_drives: List[str] = None):
         self.excluded_drives = excluded_drives or []
 
-    def _detect_drive_type(self, scan_type: str, rotation_rate: Optional[int]) -> str:
-        """Detect drive type from smartctl scan type and rotation rate.
+    def _detect_drive_type(self, protocol: str, scan_type: str, rotation_rate: Optional[int]) -> str:
+        """Detect drive type from smartctl protocol, scan type, and rotation rate.
 
         Returns a human-readable type like 'SATA SSD', 'SAS HDD', 'NVMe SSD', etc.
+        protocol from 'smartctl -i': 'SATA', 'SAS', 'SCSI', 'NVMe', etc.
         scan_type from 'smartctl --scan': 'sat' = SATA, 'scsi' = SAS, 'nvme' = NVMe.
         rotation_rate from 'smartctl -i': >0 = HDD, None/0 = SSD.
-        """
-        if scan_type == "nvme":
-            return "NVMe SSD"
 
-        bus = "SAS" if scan_type == "scsi" else "SATA"
+        Uses protocol (from smartctl -i) as primary source since scan_type is unreliable
+        on Linux where libata can cause SATA drives to report as 'scsi'.
+        """
+        if protocol:
+            p = protocol.lower()
+            if "nvme" in p:
+                return "NVMe SSD"
+            if "sas" in p or "scsi" in p:
+                bus = "SAS"
+            else:
+                bus = "SATA"
+        else:
+            if scan_type == "nvme":
+                return "NVMe SSD"
+            bus = "SAS" if scan_type == "scsi" else "SATA"
 
         if rotation_rate is not None and rotation_rate > 0:
             return f"{bus} HDD"
@@ -58,7 +70,7 @@ class SmartCollector:
                     scan_type = device.get("type", "Unknown")
                     info = self._get_drive_info(drive_path)
                     if info and info["serial"] and info["serial"] not in self.excluded_drives:
-                        drive_type = self._detect_drive_type(scan_type, info.get("rotation_rate"))
+                        drive_type = self._detect_drive_type(info.get("protocol"), scan_type, info.get("rotation_rate"))
                         drives.append({
                             "path": drive_path,
                             "serial": info["serial"],
@@ -80,18 +92,20 @@ class SmartCollector:
                 text=True,
                 timeout=30
             )
-            if result.returncode == 0:
+            if result.returncode <= 1 and result.stdout:
                 data = json.loads(result.stdout)
                 serial = data.get("serial_number")
                 model = data.get("model_name") or data.get("scsi_model_name", "Unknown")
                 size_bytes = data.get("user_capacity", {}).get("bytes")
                 size = _format_bytes(size_bytes) if size_bytes else "Unknown"
                 rotation_rate = data.get("rotation_rate")
+                protocol = data.get("protocol")
                 return {
                     "serial": serial,
                     "model": model,
                     "size": size,
                     "rotation_rate": rotation_rate,
+                    "protocol": protocol,
                 }
         except Exception:
             pass
@@ -101,12 +115,15 @@ class SmartCollector:
         """Collect SMART data from a drive."""
         try:
             result = subprocess.run(
-                ["smartctl", "-A", "-i", "--json", drive_path],
+                ["smartctl", "-a", "--json", drive_path],
                 capture_output=True,
                 text=True,
                 timeout=60
             )
-            if result.returncode == 0:
+            # smartctl returns 0 for OK, 1 for errors/issues, 2 for critical errors.
+            # Exit code 1 often means data was collected but some features are unsupported
+            # (common with SAS drives or USB-attached drives). Only bail on code 2+.
+            if result.returncode <= 1 and result.stdout:
                 data = json.loads(result.stdout)
                 return self._parse_smart_data(data, drive_path)
         except Exception as e:
@@ -114,17 +131,57 @@ class SmartCollector:
         return None
 
     def _parse_smart_data(self, data: Dict, drive_path: str) -> Dict:
-        """Parse SMART data and extract relevant attributes."""
+        """Parse SMART data from smartctl -a --json output.
+
+        Handles both ATA (ata_smart_attributes) and SAS/SCSI drives.
+        For SAS, extracts health from top-level fields and SCSI log pages.
+        """
+        protocol = (data.get("protocol") or "").lower()
+        is_sas = "sas" in protocol or "scsi" in protocol
+
         attributes = {
             "timestamp": datetime.utcnow().isoformat(),
             "drive_path": drive_path,
             "serial": data.get("serial_number"),
-            "model": data.get("model_name"),
+            "model": data.get("model_name") or data.get("scsi_model_name"),
+            "drive_type": "SAS" if is_sas else "SATA",
             "power_on_hours": None,
             "temperature": None,
             "load_cycle_count": None,
+            "health_status": None,
+            "reallocated_sectors": None,
+            "reported_uncorrectable": None,
+            "command_timeout": None,
+            "current_pending_sector": None,
+            "offline_uncorrectable": None,
+            "udma_crc_error_count": None,
         }
 
+        # Health status from smart_status (both ATA and SAS)
+        smart_status = data.get("smart_status", {})
+        if "passed" in smart_status:
+            attributes["health_status"] = smart_status["passed"]
+
+        # Power on hours from top-level field (both ATA and SAS)
+        power_on_time = data.get("power_on_time", {})
+        if "hours" in power_on_time:
+            attributes["power_on_hours"] = power_on_time["hours"]
+
+        if is_sas:
+            self._parse_sas_data(data, attributes)
+        else:
+            self._parse_ata_data(data, attributes)
+
+        return attributes
+
+    def _parse_ata_data(self, data: Dict, attributes: Dict):
+        """Parse ATA-specific SMART attributes."""
+        # Temperature from top-level field
+        temp_data = data.get("temperature", {})
+        if "current" in temp_data:
+            attributes["temperature"] = temp_data["current"]
+
+        # ATA SMART attributes table
         for attr in data.get("ata_smart_attributes", {}).get("table", []):
             attr_id = attr["id"]
             attr_value = attr["value"]
@@ -139,7 +196,38 @@ class SmartCollector:
             elif attr_name == "Load_Cycle_Count":
                 attributes["load_cycle_count"] = attr_value
 
-        return attributes
+    def _parse_sas_data(self, data: Dict, attributes: Dict):
+        """Parse SAS/SCSI SMART data from smartctl -a --json output."""
+        # Temperature (SAS uses 'temperature' key, not 'temperature.current')
+        temp_data = data.get("temperature", {})
+        if "temperature" in temp_data:
+            attributes["temperature"] = temp_data["temperature"]
+
+        # Load cycle count from SCSI start/stop cycle counter
+        start_stop = data.get("scsi_start_stop_cycle_counter", {})
+        if "accumulated_number_of_cycle_uploads" in start_stop:
+            attributes["load_cycle_count"] = start_stop["accumulated_number_of_cycle_uploads"]
+        elif "number_of_status_changes" in start_stop:
+            attributes["load_cycle_count"] = start_stop["number_of_status_changes"]
+
+        # Reallocated sectors from SCSI grown defect list
+        defect_list = data.get("scsi_grown_defect_list", {})
+        if "grown_defect_list_count" in defect_list:
+            attributes["reallocated_sectors"] = defect_list["grown_defect_list_count"]
+
+        # Error counters from SCSI error counter log
+        error_log = data.get("scsi_error_counter_log", {})
+        if "read" in error_log:
+            read_errs = error_log["read"]
+            if "correction_of_errors" in read_errs:
+                attributes["reported_uncorrectable"] = read_errs["correction_of_errors"]
+        if "write" in error_log:
+            write_errs = error_log["write"]
+            if "correction_of_errors" in write_errs:
+                if attributes["reported_uncorrectable"] is None:
+                    attributes["reported_uncorrectable"] = write_errs["correction_of_errors"]
+                else:
+                    attributes["reported_uncorrectable"] += write_errs["correction_of_errors"]
 
     def collect_all(self) -> List[Dict]:
         """Collect SMART data from all non-excluded drives."""
