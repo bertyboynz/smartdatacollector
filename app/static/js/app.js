@@ -319,10 +319,13 @@ function renderModalStats(container, latest, previous) {
     const stats = [
         { label: 'Temperature', value: latest.temperature, unit: '°C' },
         { label: 'Power On Hours', value: latest.power_on_hours, unit: 'hours' },
+        { label: 'Power Cycle Count', value: latest.power_cycle_count, unit: '' },
         { label: 'Load Cycle Count', value: latest.load_cycle_count, unit: '' },
         { label: 'Reallocated Sectors', value: latest.reallocated_sectors || 0, unit: '' },
         { label: 'Pending Sectors', value: latest.current_pending_sector || 0, unit: '' },
         { label: 'Uncorrectable Errors', value: latest.reported_uncorrectable || 0, unit: '' },
+        { label: 'Hardware ECC Recovered', value: latest.hardware_ecc_recovered || 0, unit: '' },
+        { label: 'End-to-End Errors', value: latest.end_to_end_error || 0, unit: '' },
         { label: 'CRC Errors', value: latest.udma_crc_error_count || 0, unit: '' },
     ];
 

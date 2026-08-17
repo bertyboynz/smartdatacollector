@@ -6,8 +6,11 @@ from datetime import datetime
 
 SMART_ATTRIBUTES = {
     5: "reallocated_sectors",
+    12: "power_cycle_count",
+    184: "end_to_end_error",
     187: "reported_uncorrectable",
     188: "command_timeout",
+    195: "hardware_ecc_recovered",
     197: "current_pending_sector",
     198: "offline_uncorrectable",
     199: "udma_crc_error_count",
@@ -181,8 +184,11 @@ class SmartCollector:
             "load_cycle_count": None,
             "health_status": None,
             "reallocated_sectors": None,
+            "power_cycle_count": None,
+            "end_to_end_error": None,
             "reported_uncorrectable": None,
             "command_timeout": None,
+            "hardware_ecc_recovered": None,
             "current_pending_sector": None,
             "offline_uncorrectable": None,
             "udma_crc_error_count": None,
