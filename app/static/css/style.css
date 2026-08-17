@@ -184,6 +184,20 @@ h1 {
     font-weight: bold;
 }
 
+.delta {
+    font-size: 13px;
+    margin-left: 8px;
+    font-weight: bold;
+}
+
+.delta.positive {
+    color: #e74c3c;
+}
+
+.delta.negative {
+    color: #27ae60;
+}
+
 /* Drives Table */
 .drives-table-container {
     overflow-x: auto;

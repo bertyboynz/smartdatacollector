@@ -317,23 +317,22 @@ function renderModalChart(history) {
 
 function renderModalStats(container, latest, previous) {
     const stats = [
-        { label: 'Temperature', value: latest.temperature, unit: '°C' },
-        { label: 'Power On Hours', value: latest.power_on_hours, unit: 'hours' },
-        { label: 'Power Cycle Count', value: latest.power_cycle_count, unit: '' },
-        { label: 'Load Cycle Count', value: latest.load_cycle_count, unit: '' },
-        { label: 'Reallocated Sectors', value: latest.reallocated_sectors || 0, unit: '' },
-        { label: 'Pending Sectors', value: latest.current_pending_sector || 0, unit: '' },
-        { label: 'Uncorrectable Errors', value: latest.reported_uncorrectable || 0, unit: '' },
-        { label: 'Hardware ECC Recovered', value: latest.hardware_ecc_recovered || 0, unit: '' },
-        { label: 'End-to-End Errors', value: latest.end_to_end_error || 0, unit: '' },
-        { label: 'CRC Errors', value: latest.udma_crc_error_count || 0, unit: '' },
+        { label: 'Temperature', key: 'temperature', value: latest.temperature, unit: '°C' },
+        { label: 'Power On Hours', key: 'power_on_hours', value: latest.power_on_hours, unit: 'hours' },
+        { label: 'Power Cycle Count', key: 'power_cycle_count', value: latest.power_cycle_count, unit: '' },
+        { label: 'Load Cycle Count', key: 'load_cycle_count', value: latest.load_cycle_count, unit: '' },
+        { label: 'Reallocated Sectors', key: 'reallocated_sectors', value: latest.reallocated_sectors || 0, unit: '' },
+        { label: 'Pending Sectors', key: 'current_pending_sector', value: latest.current_pending_sector || 0, unit: '' },
+        { label: 'Uncorrectable Errors', key: 'reported_uncorrectable', value: latest.reported_uncorrectable || 0, unit: '' },
+        { label: 'Hardware ECC Recovered', key: 'hardware_ecc_recovered', value: latest.hardware_ecc_recovered || 0, unit: '' },
+        { label: 'End-to-End Errors', key: 'end_to_end_error', value: latest.end_to_end_error || 0, unit: '' },
+        { label: 'CRC Errors', key: 'udma_crc_error_count', value: latest.udma_crc_error_count || 0, unit: '' },
     ];
 
     container.innerHTML = stats.map(stat => {
         let delta = '';
-        if (previous && stat.value !== null && previous[stat.label.toLowerCase().replace(/ /g, '_')] !== undefined) {
-            const prevValue = previous[stat.label.toLowerCase().replace(/ /g, '_')];
-            const diff = stat.value - prevValue;
+        if (previous && stat.value !== null && previous[stat.key] !== undefined) {
+            const diff = stat.value - previous[stat.key];
             if (diff > 0) delta = `<span class="delta positive">+${diff}</span>`;
             else if (diff < 0) delta = `<span class="delta negative">${diff}</span>`;
         }
