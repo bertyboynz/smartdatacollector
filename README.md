@@ -102,6 +102,10 @@ The container needs access to `/dev` to read drive information. The `docker-comp
 
 ## Development
 
+### Build Pipeline
+
+Pushing to `main` triggers an automated Docker build. No manual build step is needed — just push and the new image is built and available from your Docker registry.
+
 ### Project Structure
 
 ```
